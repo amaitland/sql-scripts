@@ -1,5 +1,7 @@
 'use strict';
 
+var he = require('he');
+
 module.exports = Scripts;
 
 Scripts.$inject = ['$http', '$q', 'endpoints', 'operations'];
@@ -11,6 +13,20 @@ function Scripts($http, $q, endpoints, operations) {
   this.endpoints = endpoints;
   this.operations = operations;
 }
+
+function decodeJson(item) {
+    return {
+        id: item['ContentItemId'],
+        title: he.decode(item['Title']),
+        description: he.decode(item['Description']),
+        author: he.decode(item['Authors']),
+        createdDate: item['CreatedDate'],
+        downloads: item['ViewsCount'],
+        rating: item['Rating'],
+        category: he.decode(item['CategoryTag']),
+        scriptText: 'Loading...'
+    };
+};
 
 Scripts.prototype.loadScriptsForPage = function(index, callback, searchQuery) {
   var query = this.endpoints.getListScriptsEndpoint() + index,
@@ -28,19 +44,7 @@ Scripts.prototype.loadScriptsForPage = function(index, callback, searchQuery) {
 
   this.$http({ method: 'GET', url: query, timeout: this.request })
   .success(function(data) {
-    var mappedScripts = data['Scripts'].map(function(item) {
-      return {
-        id: item['ContentItemId'],
-        title: item['Title'],
-        description: item['Description'],
-        author: item['Authors'],
-        createdDate: item['CreatedDate'],
-        downloads: item['ViewsCount'],
-        rating: item['Rating'],
-        category: item['CategoryTag'],
-        scriptText: 'Loading...'
-      };
-    });
+      var mappedScripts = data['Scripts'].map(decodeJson);
 
     if (mappedScripts.length > 0) {
       self.hydrateScript(mappedScripts[0]); // make sure the first script gets downloaded
@@ -68,18 +72,10 @@ Scripts.prototype.loadFavorites = function(favoritesInfo, callback) {
       if (updated) {
         self.operations.setFavorite(item['ContentItemId']);
       }
-      return {
-        id: item['ContentItemId'],
-        title: item['Title'],
-        description: item['Description'],
-        author: item['Authors'],
-        createdDate: item['CreatedDate'],
-        downloads: item['ViewsCount'],
-        rating: item['Rating'],
-        category: item['CategoryTag'],
-        scriptText: 'Loading...',
-        updated: updated
-      };
+
+      var script = decodeJson(item);
+      script.updated = updated;
+      return script;
     });
 
     if (mappedScripts.length > 0) {
@@ -93,7 +89,7 @@ Scripts.prototype.loadFavorites = function(favoritesInfo, callback) {
 Scripts.prototype.hydrateScript = function (script) {
   this.$http.get(this.endpoints.getSqlScriptEndpoint(script['id']))
   .success(function(data) {
-    script.scriptText = data['Script']['SqlScript'];
+    script.scriptText = he.decode(data['Script']['SqlScript']);
 
     /*$('.highlight').each(function(i, e) {
           hljs.highlightBlock(e);
